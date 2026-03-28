@@ -1,0 +1,53 @@
+# STC2STW (Sillytavern Card -> Sillytavern World)
+
+a simple conversion program shamefully vibecoded in golang by OpenAI Codex to turn sillytavern characters into a sillytavern lorebook. oh yeah and it also works for personas probably.
+
+# building
+
+get go. possibly the latest go. i use go from nix, so if you have nix, then `nix-shell -p go`
+
+then clone this repo, and compile it by going:
+```bash
+go build -o stc2stw cmd/stc2stw/main.go
+```
+
+congratz.
+
+# usage
+
+stc2stw by default works by you providing a character card. the most basic usage of stc2stw is:
+```bash
+./stc2stw <Character Card>.png
+```
+
+and the result will be printed in your terminal. You'd typically wanna redirect this to a file somehow... for that you can use `--out` or `-o` like:
+```bash
+./stc2stw <Character Card>.png -o Some_Creative_Name.json
+```
+
+wow. you can now import that right into sillytavern!
+
+you can also put personas from persona backups into a lorebook! on sillytavern you go to Personas > Backup and you get a json...
+
+and if you feed it to stc2stw like thiiis:
+```bash
+./stc2stw persona_<date>.json --persona (or -p) "user" (case insensitive)
+```
+
+stc2stw will make a lorebook with said persona in it.
+
+okay but that's cool. but you're not gonna be expected to manually create a lorebook for e a c h of your characters right?
+
+surprise we have mass mode `--mass`
+
+so you can literally go:
+```bash
+./stc2stw Character1.png Character2.json (oh yeah btw character json exports are supported too) --mass -o party.json
+```
+
+persona syntax changes in mass mode as `--persona` is disabled. instead you will need to define personas like `<Source export file>.json:<Persona name>`
+
+as a better example:
+```bash
+./stc2stw Character1.png Character2.json persona_<date>.json:Mario (also case insensitive) --mass
+```
