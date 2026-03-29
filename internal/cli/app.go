@@ -34,6 +34,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 	var outPath string
 	var personaName string
+	var positionName string
 	var mass bool
 	var verbose bool
 
@@ -41,14 +42,16 @@ func run(args []string, stdout, stderr io.Writer) error {
 	fs.StringVar(&outPath, "o", "", "write output JSON to a file")
 	fs.StringVar(&personaName, "persona", "", "select a persona from a persona export json")
 	fs.StringVar(&personaName, "p", "", "select a persona from a persona export json")
+	fs.StringVar(&positionName, "position", "@duser", "set lorebook insertion position preset")
+	fs.StringVar(&positionName, "P", "@duser", "set lorebook insertion position preset")
 	fs.BoolVar(&mass, "mass", false, "combine multiple inputs into one lorebook")
 	fs.BoolVar(&mass, "m", false, "combine multiple inputs into one lorebook")
 	fs.BoolVar(&verbose, "v", false, "print progress logs to stderr")
 	fs.BoolVar(&verbose, "verbose", false, "print progress logs to stderr")
 	fs.Usage = func() {
 		fmt.Fprintln(stderr, "usage: stc2stw <Character Card.{png,json}> [--out=output.json|-o output.json] [-v|--verbose]")
-		fmt.Fprintln(stderr, "   or: stc2stw <Persona Export.json> --persona \"Name\" [--out=output.json|-o output.json] [-v|--verbose]")
-		fmt.Fprintln(stderr, "   or: stc2stw <Input1> <Input2> [...] --mass [--out=output.json|-o output.json] [-v|--verbose]")
+		fmt.Fprintln(stderr, "   or: stc2stw <Persona Export.json> --persona \"Name\" [--position=@duser|-P @duser] [--out=output.json|-o output.json] [-v|--verbose]")
+		fmt.Fprintln(stderr, "   or: stc2stw <Input1> <Input2> [...] --mass [--position=@duser|-P @duser] [--out=output.json|-o output.json] [-v|--verbose]")
 	}
 
 	if err := fs.Parse(args); err != nil {
@@ -73,6 +76,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if mass && strings.TrimSpace(personaName) != "" {
 		return fmt.Errorf("--mass cannot be combined with --persona; use <persona_export.json>:<Persona Name> inputs instead")
 	}
+	preset, err := lorebook.ResolvePositionPreset(positionName)
+	if err != nil {
+		return err
+	}
 
 	logf := func(format string, values ...any) {}
 	if verbose {
@@ -91,7 +98,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	logf("building lorebook with %d entries", len(parsedCards))
-	book := lorebook.BuildMany(parsedCards)
+	book := lorebook.BuildMany(parsedCards, preset)
 
 	data, err := lorebook.Marshal(book)
 	if err != nil {
@@ -136,7 +143,7 @@ func normalizeArgs(args []string) ([]string, error) {
 }
 
 func needsValue(arg string) bool {
-	return arg == "--out" || arg == "-o" || arg == "--persona" || arg == "-p"
+	return arg == "--out" || arg == "-o" || arg == "--persona" || arg == "-p" || arg == "--position" || arg == "-P"
 }
 
 func resolveInput(input string, mass bool, personaName string, logf func(string, ...any)) (card.Card, error) {

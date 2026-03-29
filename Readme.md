@@ -51,3 +51,26 @@ as a better example:
 ```bash
 ./stc2stw Character1.png Character2.json persona_<date>.json:Mario (also case insensitive) --mass
 ```
+
+# configuring insertion position
+
+by default stc2stw will make all entries be inserted as "@D 👤", aka as a user role message. usually this is fine! but sometimes on some models and presets, this might actually be **evil**, and may cause the AI to have no idea what the fuck is going on.
+
+luckily there's a `--position` or `-P`!
+
+by default it's set to "@duser" or "@D 👤", god i hate typing emojis in vim. but here is precisely all the options you have:
+
+- `bchar`: Before Char Defs
+- `achar`: After Char Defs
+- `bex`: Before Example Messages
+- `aex`: After Example Messages
+- `tan`: Top of AN
+- `ban`: Bottom of AN
+- `@dsys`: @D ⚙️
+- `@duser`: @D 👤
+- `@dass`: @D 🤖
+- `outlet`: Outlet (use with {{outlet::stc2stw}} :3)
+
+note: the meaning of these can be found on the sillytavern docs, here: [Insertion Position](https://docs.sillytavern.app/usage/core-concepts/worldinfo/#insertion-position)
+
+now if you ask me on how the fuck do these work. i'll have no clue. lorebooks are still arcane magic for me.

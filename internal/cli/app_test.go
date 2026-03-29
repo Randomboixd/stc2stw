@@ -37,6 +37,9 @@ func TestRunWritesJSONToStdoutByDefault(t *testing.T) {
 	if !strings.Contains(stdout.String(), "\"entries\"") {
 		t.Fatalf("expected lorebook json on stdout, got %q", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "\"position\": 4") || !strings.Contains(stdout.String(), "\"role\": 1") {
+		t.Fatalf("expected default @duser position/role, got %q", stdout.String())
+	}
 }
 
 func TestRunWritesFileWhenOutIsSet(t *testing.T) {
@@ -319,6 +322,68 @@ func TestRunMassModeBuildsMultipleEntries(t *testing.T) {
 	}
 	if !strings.Contains(text, "\"comment\": \"User\"") || !strings.Contains(text, "\"comment\": \"Bob\"") {
 		t.Fatalf("expected both inputs in lorebook, got %q", text)
+	}
+}
+
+func TestRunPositionPresetAppliesToAllMassEntries(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	cardAPath := filepath.Join(tempDir, "alice.json")
+	cardBPath := filepath.Join(tempDir, "bob.json")
+	if err := os.WriteFile(cardAPath, []byte(`{"name":"Alice","description":"A"}`), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+	if err := os.WriteFile(cardBPath, []byte(`{"name":"Bob","description":"B"}`), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Run([]string{cardAPath, cardBPath, "--mass", "--position", "bchar"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+	text := stdout.String()
+	if strings.Count(text, "\"position\": 0") != 2 {
+		t.Fatalf("expected both entries at before-char position, got %q", text)
+	}
+}
+
+func TestRunOutletPositionWritesOutletName(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inputPath := filepath.Join(tempDir, "card.json")
+	if err := os.WriteFile(inputPath, []byte(`{"name":"Alice","description":"Desc"}`), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Run([]string{inputPath, "-P", "outlet"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "\"position\": 7") || !strings.Contains(stdout.String(), "\"outletName\": \"stc2stw\"") {
+		t.Fatalf("expected outlet position and outlet name, got %q", stdout.String())
+	}
+}
+
+func TestRunInvalidPositionFails(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Run([]string{"card.json", "--position", "nope"}, &stdout, &stderr)
+	if code == 0 {
+		t.Fatal("expected non-zero exit code")
+	}
+	if !strings.Contains(stderr.String(), "invalid --position") {
+		t.Fatalf("expected invalid position error, got %q", stderr.String())
 	}
 }
 

@@ -12,8 +12,21 @@ import (
 )
 
 const (
-	defaultOrder    = 100
-	defaultPosition = 4
+	defaultOrder     = 100
+	positionBefore   = 0
+	positionAfter    = 1
+	positionANTop    = 2
+	positionANBottom = 3
+	positionAtDepth  = 4
+	positionEMTop    = 5
+	positionEMBottom = 6
+	positionOutlet   = 7
+
+	roleSystem    = 0
+	roleUser      = 1
+	roleAssistant = 2
+
+	defaultOutletName = "stc2stw"
 )
 
 var speakerPrefixPattern = regexp.MustCompile(`(?m)^(?:<START>\s*)?(?:<([^>\n]+)>|([A-Za-z0-9][A-Za-z0-9 ._'’-]{0,62}[A-Za-z0-9])):`)
@@ -51,19 +64,31 @@ type Entry struct {
 	UseGroupScoring     *bool    `json:"useGroupScoring"`
 	AutomationID        string   `json:"automationId"`
 	Role                int      `json:"role"`
+	OutletName          string   `json:"outletName"`
 	Sticky              int      `json:"sticky"`
 	Cooldown            int      `json:"cooldown"`
 	Delay               int      `json:"delay"`
 	DisplayIndex        int      `json:"displayIndex"`
 }
 
+type InsertionPreset struct {
+	Position   int
+	Role       int
+	OutletName string
+}
+
+var defaultPreset = InsertionPreset{
+	Position: positionAtDepth,
+	Role:     roleUser,
+}
+
 // Build converts a normalized card into a standalone SillyTavern lorebook.
 func Build(c card.Card) Lorebook {
-	return BuildMany([]card.Card{c})
+	return BuildMany([]card.Card{c}, defaultPreset)
 }
 
 // BuildMany converts a list of normalized cards into a standalone SillyTavern lorebook.
-func BuildMany(cards []card.Card) Lorebook {
+func BuildMany(cards []card.Card, preset InsertionPreset) Lorebook {
 	entries := make(map[string]Entry, len(cards))
 	for i, c := range cards {
 		entry := Entry{
@@ -78,7 +103,7 @@ func BuildMany(cards []card.Card) Lorebook {
 			SelectiveLogic:      0,
 			AddMemo:             true,
 			Order:               defaultOrder,
-			Position:            defaultPosition,
+			Position:            preset.Position,
 			Disable:             false,
 			ExcludeRecursion:    false,
 			PreventRecursion:    false,
@@ -94,7 +119,8 @@ func BuildMany(cards []card.Card) Lorebook {
 			MatchWholeWords:     nil,
 			UseGroupScoring:     nil,
 			AutomationID:        "",
-			Role:                0,
+			Role:                preset.Role,
+			OutletName:          preset.OutletName,
 			Sticky:              0,
 			Cooldown:            0,
 			Delay:               0,
@@ -107,6 +133,37 @@ func BuildMany(cards []card.Card) Lorebook {
 
 	return Lorebook{
 		Entries: entries,
+	}
+}
+
+func DefaultPreset() InsertionPreset {
+	return defaultPreset
+}
+
+func ResolvePositionPreset(value string) (InsertionPreset, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "@duser":
+		return defaultPreset, nil
+	case "bchar":
+		return InsertionPreset{Position: positionBefore, Role: roleSystem}, nil
+	case "achar":
+		return InsertionPreset{Position: positionAfter, Role: roleSystem}, nil
+	case "bex":
+		return InsertionPreset{Position: positionEMTop, Role: roleSystem}, nil
+	case "aex":
+		return InsertionPreset{Position: positionEMBottom, Role: roleSystem}, nil
+	case "tan":
+		return InsertionPreset{Position: positionANTop, Role: roleSystem}, nil
+	case "ban":
+		return InsertionPreset{Position: positionANBottom, Role: roleSystem}, nil
+	case "@dsys":
+		return InsertionPreset{Position: positionAtDepth, Role: roleSystem}, nil
+	case "@dass":
+		return InsertionPreset{Position: positionAtDepth, Role: roleAssistant}, nil
+	case "outlet":
+		return InsertionPreset{Position: positionOutlet, Role: roleSystem, OutletName: defaultOutletName}, nil
+	default:
+		return InsertionPreset{}, fmt.Errorf("invalid --position %q; expected one of: bchar, achar, bex, aex, tan, ban, @dsys, @duser, @dass, outlet", value)
 	}
 }
 

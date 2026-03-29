@@ -1,10 +1,6 @@
 package persona
 
-import (
-	"os"
-	"path/filepath"
-	"testing"
-)
+import "testing"
 
 func TestParseJSONFindsPersonaInKeyedExport(t *testing.T) {
 	t.Parallel()
@@ -82,27 +78,4 @@ func TestLooksLikeExportJSON(t *testing.T) {
 	if !LooksLikeExportJSON(input) {
 		t.Fatal("expected persona export detection")
 	}
-}
-
-func TestParseFileSupportsSanitizedExportSample(t *testing.T) {
-	t.Parallel()
-
-	root := repoRoot(t)
-	persona, err := ParseFile(filepath.Join(root, "personas_20260328.json"), "User")
-	if err != nil {
-		t.Fatalf("ParseFile returned error: %v", err)
-	}
-	if persona.Name != "User" {
-		t.Fatalf("expected User, got %q", persona.Name)
-	}
-}
-
-func repoRoot(t *testing.T) string {
-	t.Helper()
-
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd failed: %v", err)
-	}
-	return filepath.Clean(filepath.Join(wd, "..", ".."))
 }

@@ -55,7 +55,7 @@ func TestBuildManyAssignsSequentialEntries(t *testing.T) {
 	book := BuildMany([]card.Card{
 		{Name: "Alice"},
 		{Name: "Bob"},
-	})
+	}, DefaultPreset())
 
 	if len(book.Entries) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(book.Entries))
@@ -65,5 +65,33 @@ func TestBuildManyAssignsSequentialEntries(t *testing.T) {
 	}
 	if book.Entries["1"].UID != 1 || book.Entries["1"].Comment != "Bob" {
 		t.Fatalf("unexpected second entry: %+v", book.Entries["1"])
+	}
+}
+
+func TestDefaultPresetIsAtDepthUser(t *testing.T) {
+	t.Parallel()
+
+	book := Build(card.Card{Name: "Alice"})
+	entry := book.Entries["0"]
+	if entry.Position != positionAtDepth {
+		t.Fatalf("expected at-depth position, got %d", entry.Position)
+	}
+	if entry.Role != roleUser {
+		t.Fatalf("expected user role, got %d", entry.Role)
+	}
+}
+
+func TestResolvePositionPresetOutlet(t *testing.T) {
+	t.Parallel()
+
+	preset, err := ResolvePositionPreset("outlet")
+	if err != nil {
+		t.Fatalf("ResolvePositionPreset returned error: %v", err)
+	}
+	if preset.Position != positionOutlet {
+		t.Fatalf("expected outlet position, got %d", preset.Position)
+	}
+	if preset.OutletName != defaultOutletName {
+		t.Fatalf("expected outlet name %q, got %q", defaultOutletName, preset.OutletName)
 	}
 }
