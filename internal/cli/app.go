@@ -36,6 +36,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	var personaName string
 	var positionName string
 	var mass bool
+	var noCompact bool
 	var verbose bool
 
 	fs.StringVar(&outPath, "out", "", "write output JSON to a file")
@@ -46,12 +47,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 	fs.StringVar(&positionName, "P", "@duser", "set lorebook insertion position preset")
 	fs.BoolVar(&mass, "mass", false, "combine multiple inputs into one lorebook")
 	fs.BoolVar(&mass, "m", false, "combine multiple inputs into one lorebook")
+	fs.BoolVar(&noCompact, "no-compact", false, "disable embedded lorebook compacting")
 	fs.BoolVar(&verbose, "v", false, "print progress logs to stderr")
 	fs.BoolVar(&verbose, "verbose", false, "print progress logs to stderr")
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: stc2stw <Character Card.{png,json}> [--out=output.json|-o output.json] [-v|--verbose]")
-		fmt.Fprintln(stderr, "   or: stc2stw <Persona Export.json> --persona \"Name\" [--position=@duser|-P @duser] [--out=output.json|-o output.json] [-v|--verbose]")
-		fmt.Fprintln(stderr, "   or: stc2stw <Input1> <Input2> [...] --mass [--position=@duser|-P @duser] [--out=output.json|-o output.json] [-v|--verbose]")
+		fmt.Fprintln(stderr, "usage: stc2stw <Character Card.{png,json}> [--position=@duser|-P @duser] [--no-compact] [--out=output.json|-o output.json] [-v|--verbose]")
+		fmt.Fprintln(stderr, "   or: stc2stw <Persona Export.json> --persona \"Name\" [--position=@duser|-P @duser] [--no-compact] [--out=output.json|-o output.json] [-v|--verbose]")
+		fmt.Fprintln(stderr, "   or: stc2stw <Input1> <Input2> [...] --mass [--position=@duser|-P @duser] [--no-compact] [--out=output.json|-o output.json] [-v|--verbose]")
 	}
 
 	if err := fs.Parse(args); err != nil {
@@ -97,8 +99,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		parsedCards = append(parsedCards, parsedCard)
 	}
 
-	logf("building lorebook with %d entries", len(parsedCards))
-	book := lorebook.BuildMany(parsedCards, preset)
+	logf("building lorebook with %d sources", len(parsedCards))
+	book := lorebook.BuildManyWithOptions(parsedCards, preset, !noCompact)
 
 	data, err := lorebook.Marshal(book)
 	if err != nil {

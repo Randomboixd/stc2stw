@@ -36,39 +36,48 @@ type Lorebook struct {
 }
 
 type Entry struct {
-	UID                 int      `json:"uid"`
-	Key                 []string `json:"key"`
-	KeySecondary        []string `json:"keysecondary"`
-	Comment             string   `json:"comment"`
-	Content             string   `json:"content"`
-	Constant            bool     `json:"constant"`
-	Vectorized          bool     `json:"vectorized"`
-	Selective           bool     `json:"selective"`
-	SelectiveLogic      int      `json:"selectiveLogic"`
-	AddMemo             bool     `json:"addMemo"`
-	Order               int      `json:"order"`
-	Position            int      `json:"position"`
-	Disable             bool     `json:"disable"`
-	ExcludeRecursion    bool     `json:"excludeRecursion"`
-	PreventRecursion    bool     `json:"preventRecursion"`
-	DelayUntilRecursion bool     `json:"delayUntilRecursion"`
-	Probability         int      `json:"probability"`
-	UseProbability      bool     `json:"useProbability"`
-	Depth               int      `json:"depth"`
-	Group               string   `json:"group"`
-	GroupOverride       bool     `json:"groupOverride"`
-	GroupWeight         int      `json:"groupWeight"`
-	ScanDepth           *int     `json:"scanDepth"`
-	CaseSensitive       *bool    `json:"caseSensitive"`
-	MatchWholeWords     *bool    `json:"matchWholeWords"`
-	UseGroupScoring     *bool    `json:"useGroupScoring"`
-	AutomationID        string   `json:"automationId"`
-	Role                int      `json:"role"`
-	OutletName          string   `json:"outletName"`
-	Sticky              int      `json:"sticky"`
-	Cooldown            int      `json:"cooldown"`
-	Delay               int      `json:"delay"`
-	DisplayIndex        int      `json:"displayIndex"`
+	UID                       int      `json:"uid"`
+	Key                       []string `json:"key"`
+	KeySecondary              []string `json:"keysecondary"`
+	Comment                   string   `json:"comment"`
+	Content                   string   `json:"content"`
+	Constant                  bool     `json:"constant"`
+	Vectorized                bool     `json:"vectorized"`
+	Selective                 bool     `json:"selective"`
+	SelectiveLogic            int      `json:"selectiveLogic"`
+	AddMemo                   bool     `json:"addMemo"`
+	Order                     int      `json:"order"`
+	Position                  int      `json:"position"`
+	Disable                   bool     `json:"disable"`
+	ExcludeRecursion          bool     `json:"excludeRecursion"`
+	PreventRecursion          bool     `json:"preventRecursion"`
+	DelayUntilRecursion       bool     `json:"delayUntilRecursion"`
+	Probability               int      `json:"probability"`
+	UseProbability            bool     `json:"useProbability"`
+	Depth                     int      `json:"depth"`
+	Group                     string   `json:"group"`
+	GroupOverride             bool     `json:"groupOverride"`
+	GroupWeight               int      `json:"groupWeight"`
+	ScanDepth                 *int     `json:"scanDepth"`
+	CaseSensitive             *bool    `json:"caseSensitive"`
+	MatchWholeWords           *bool    `json:"matchWholeWords"`
+	UseGroupScoring           *bool    `json:"useGroupScoring"`
+	AutomationID              string   `json:"automationId"`
+	Role                      int      `json:"role"`
+	OutletName                string   `json:"outletName"`
+	Sticky                    int      `json:"sticky"`
+	Cooldown                  int      `json:"cooldown"`
+	Delay                     int      `json:"delay"`
+	DisplayIndex              int      `json:"displayIndex"`
+	CharacterFilterExclude    *bool    `json:"characterFilterExclude"`
+	CharacterFilterNames      []string `json:"characterFilterNames"`
+	CharacterFilterTags       []string `json:"characterFilterTags"`
+	MatchCharacterDepthPrompt *bool    `json:"matchCharacterDepthPrompt"`
+	MatchCharacterDescription *bool    `json:"matchCharacterDescription"`
+	MatchCharacterPersonality *bool    `json:"matchCharacterPersonality"`
+	MatchCreatorNotes         *bool    `json:"matchCreatorNotes"`
+	MatchPersonaDescription   *bool    `json:"matchPersonaDescription"`
+	MatchScenario             *bool    `json:"matchScenario"`
 }
 
 type InsertionPreset struct {
@@ -89,51 +98,26 @@ func Build(c card.Card) Lorebook {
 
 // BuildMany converts a list of normalized cards into a standalone SillyTavern lorebook.
 func BuildMany(cards []card.Card, preset InsertionPreset) Lorebook {
-	entries := make(map[string]Entry, len(cards))
-	for i, c := range cards {
-		entry := Entry{
-			UID:                 0,
-			Key:                 buildKeys(c),
-			KeySecondary:        []string{},
-			Comment:             c.Name,
-			Content:             buildMarkdown(c),
-			Constant:            false,
-			Vectorized:          false,
-			Selective:           false,
-			SelectiveLogic:      0,
-			AddMemo:             true,
-			Order:               defaultOrder,
-			Position:            preset.Position,
-			Disable:             false,
-			ExcludeRecursion:    false,
-			PreventRecursion:    false,
-			DelayUntilRecursion: false,
-			Probability:         100,
-			UseProbability:      true,
-			Depth:               0,
-			Group:               "",
-			GroupOverride:       false,
-			GroupWeight:         100,
-			ScanDepth:           nil,
-			CaseSensitive:       nil,
-			MatchWholeWords:     nil,
-			UseGroupScoring:     nil,
-			AutomationID:        "",
-			Role:                preset.Role,
-			OutletName:          preset.OutletName,
-			Sticky:              0,
-			Cooldown:            0,
-			Delay:               0,
-			DisplayIndex:        0,
+	return BuildManyWithOptions(cards, preset, true)
+}
+
+func BuildManyWithOptions(cards []card.Card, preset InsertionPreset, compact bool) Lorebook {
+	flattened := make([]Entry, 0, len(cards))
+	for _, c := range cards {
+		flattened = append(flattened, buildPrimaryEntry(c, preset))
+		if compact {
+			flattened = append(flattened, compactEmbeddedEntries(c)...)
 		}
+	}
+
+	entries := make(map[string]Entry, len(flattened))
+	for i, entry := range flattened {
 		entry.UID = i
 		entry.DisplayIndex = i
 		entries[strconv.Itoa(i)] = entry
 	}
 
-	return Lorebook{
-		Entries: entries,
-	}
+	return Lorebook{Entries: entries}
 }
 
 func DefaultPreset() InsertionPreset {
@@ -176,6 +160,108 @@ func Marshal(book Lorebook) ([]byte, error) {
 
 	data = append(data, '\n')
 	return data, nil
+}
+
+func buildPrimaryEntry(c card.Card, preset InsertionPreset) Entry {
+	return Entry{
+		UID:                 0,
+		Key:                 buildKeys(c),
+		KeySecondary:        []string{},
+		Comment:             c.Name,
+		Content:             buildMarkdown(c),
+		Constant:            false,
+		Vectorized:          false,
+		Selective:           false,
+		SelectiveLogic:      0,
+		AddMemo:             true,
+		Order:               defaultOrder,
+		Position:            preset.Position,
+		Disable:             false,
+		ExcludeRecursion:    false,
+		PreventRecursion:    false,
+		DelayUntilRecursion: false,
+		Probability:         100,
+		UseProbability:      true,
+		Depth:               0,
+		Group:               "",
+		GroupOverride:       false,
+		GroupWeight:         100,
+		ScanDepth:           nil,
+		CaseSensitive:       nil,
+		MatchWholeWords:     nil,
+		UseGroupScoring:     nil,
+		AutomationID:        "",
+		Role:                preset.Role,
+		OutletName:          preset.OutletName,
+		Sticky:              0,
+		Cooldown:            0,
+		Delay:               0,
+		DisplayIndex:        0,
+	}
+}
+
+func compactEmbeddedEntries(c card.Card) []Entry {
+	if len(c.EmbeddedLorebookEntries) == 0 {
+		return nil
+	}
+
+	entries := make([]Entry, 0, len(c.EmbeddedLorebookEntries))
+	for _, embedded := range c.EmbeddedLorebookEntries {
+		keySecondary := dedupeStrings(append(slices.Clone(embedded.KeySecondary), c.Name))
+		selective := embedded.Selective
+		if len(keySecondary) > 0 && !selective {
+			selective = true
+		}
+
+		commentSuffix := firstNonEmpty(embedded.Comment, embedded.Name)
+		entry := Entry{
+			UID:                       0,
+			Key:                       dedupeStrings(slices.Clone(embedded.Key)),
+			KeySecondary:              keySecondary,
+			Comment:                   fmt.Sprintf("(src: %s) -> %s", c.Name, commentSuffix),
+			Content:                   embedded.Content,
+			Constant:                  embedded.Constant,
+			Vectorized:                embedded.Vectorized,
+			Selective:                 selective,
+			SelectiveLogic:            embedded.SelectiveLogic,
+			AddMemo:                   embedded.AddMemo,
+			Order:                     embedded.Order,
+			Position:                  embedded.Position,
+			Disable:                   embedded.Disable,
+			ExcludeRecursion:          embedded.ExcludeRecursion,
+			PreventRecursion:          embedded.PreventRecursion,
+			DelayUntilRecursion:       embedded.DelayUntilRecursion,
+			Probability:               embedded.Probability,
+			UseProbability:            embedded.UseProbability,
+			Depth:                     embedded.Depth,
+			Group:                     embedded.Group,
+			GroupOverride:             embedded.GroupOverride,
+			GroupWeight:               embedded.GroupWeight,
+			ScanDepth:                 cloneIntPointer(embedded.ScanDepth),
+			CaseSensitive:             cloneBoolPointer(embedded.CaseSensitive),
+			MatchWholeWords:           cloneBoolPointer(embedded.MatchWholeWords),
+			UseGroupScoring:           cloneBoolPointer(embedded.UseGroupScoring),
+			AutomationID:              embedded.AutomationID,
+			Role:                      embedded.Role,
+			OutletName:                embedded.OutletName,
+			Sticky:                    embedded.Sticky,
+			Cooldown:                  embedded.Cooldown,
+			Delay:                     embedded.Delay,
+			DisplayIndex:              0,
+			CharacterFilterExclude:    cloneBoolPointer(embedded.CharacterFilterExclude),
+			CharacterFilterNames:      slices.Clone(embedded.CharacterFilterNames),
+			CharacterFilterTags:       slices.Clone(embedded.CharacterFilterTags),
+			MatchCharacterDepthPrompt: cloneBoolPointer(embedded.MatchCharacterDepthPrompt),
+			MatchCharacterDescription: cloneBoolPointer(embedded.MatchCharacterDescription),
+			MatchCharacterPersonality: cloneBoolPointer(embedded.MatchCharacterPersonality),
+			MatchCreatorNotes:         cloneBoolPointer(embedded.MatchCreatorNotes),
+			MatchPersonaDescription:   cloneBoolPointer(embedded.MatchPersonaDescription),
+			MatchScenario:             cloneBoolPointer(embedded.MatchScenario),
+		}
+		entries = append(entries, entry)
+	}
+
+	return entries
 }
 
 func buildKeys(c card.Card) []string {
@@ -255,7 +341,7 @@ func buildMarkdown(c card.Card) string {
 	appendSection("System Prompt", c.SystemPrompt)
 	appendSection("Post-History Instructions", c.PostHistoryInstructions)
 	if len(c.AlternateGreetings) > 0 {
-		appendSection("Alternate Greetings", strings.Join(nonEmpty(c.AlternateGreetings), "\n\n"))
+		appendSection("Alternate Greetings", formatAlternateGreetings(c.AlternateGreetings))
 	}
 	if len(c.Tags) > 0 {
 		appendSection("Tags", strings.Join(nonEmpty(c.Tags), ", "))
@@ -264,6 +350,20 @@ func buildMarkdown(c card.Card) string {
 	appendSection("Character Version", c.CharacterVersion)
 
 	return strings.Join(sections, "\n\n")
+}
+
+func formatAlternateGreetings(values []string) string {
+	greetings := nonEmpty(values)
+	if len(greetings) == 0 {
+		return ""
+	}
+
+	formatted := make([]string, 0, len(greetings))
+	for i, greeting := range greetings {
+		formatted = append(formatted, fmt.Sprintf("### Greeting %d\n%s", i+1, greeting))
+	}
+
+	return strings.Join(formatted, "\n\n")
 }
 
 func nonEmpty(values []string) []string {
@@ -275,4 +375,47 @@ func nonEmpty(values []string) []string {
 		}
 	}
 	return result
+}
+
+func dedupeStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		canonical := strings.ToLower(trimmed)
+		if _, ok := seen[canonical]; ok {
+			continue
+		}
+		seen[canonical] = struct{}{}
+		result = append(result, trimmed)
+	}
+	return result
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func cloneIntPointer(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func cloneBoolPointer(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }

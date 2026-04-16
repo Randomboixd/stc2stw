@@ -32,6 +32,20 @@ func TestBuildIncludesOnlyNonEmptySections(t *testing.T) {
 	}
 }
 
+func TestBuildSeparatesAlternateGreetings(t *testing.T) {
+	t.Parallel()
+
+	book := Build(card.Card{
+		Name:               "Alice",
+		AlternateGreetings: []string{"Hello there", "Good evening"},
+	})
+
+	content := book.Entries["0"].Content
+	if !strings.Contains(content, "## Alternate Greetings\n### Greeting 1\nHello there\n\n### Greeting 2\nGood evening") {
+		t.Fatalf("expected numbered alternate greetings, got %q", content)
+	}
+}
+
 func TestMarshalIsPrettyPrinted(t *testing.T) {
 	t.Parallel()
 
@@ -53,18 +67,26 @@ func TestBuildManyAssignsSequentialEntries(t *testing.T) {
 	t.Parallel()
 
 	book := BuildMany([]card.Card{
-		{Name: "Alice"},
+		{
+			Name: "Alice",
+			EmbeddedLorebookEntries: []card.EmbeddedLorebookEntry{
+				{Key: []string{"Town"}, Comment: "Town", Content: "Lore"},
+			},
+		},
 		{Name: "Bob"},
 	}, DefaultPreset())
 
-	if len(book.Entries) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(book.Entries))
+	if len(book.Entries) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(book.Entries))
 	}
 	if book.Entries["0"].UID != 0 || book.Entries["0"].Comment != "Alice" {
 		t.Fatalf("unexpected first entry: %+v", book.Entries["0"])
 	}
-	if book.Entries["1"].UID != 1 || book.Entries["1"].Comment != "Bob" {
+	if book.Entries["1"].UID != 1 || book.Entries["1"].Comment != "(src: Alice) -> Town" {
 		t.Fatalf("unexpected second entry: %+v", book.Entries["1"])
+	}
+	if book.Entries["2"].UID != 2 || book.Entries["2"].Comment != "Bob" {
+		t.Fatalf("unexpected third entry: %+v", book.Entries["2"])
 	}
 }
 
@@ -93,5 +115,74 @@ func TestResolvePositionPresetOutlet(t *testing.T) {
 	}
 	if preset.OutletName != defaultOutletName {
 		t.Fatalf("expected outlet name %q, got %q", defaultOutletName, preset.OutletName)
+	}
+}
+
+func TestBuildManyCompactsEmbeddedEntries(t *testing.T) {
+	t.Parallel()
+
+	book := BuildMany([]card.Card{{
+		Name: "Alice",
+		EmbeddedLorebookEntries: []card.EmbeddedLorebookEntry{{
+			Key:            []string{"Town"},
+			KeySecondary:   []string{"Urban"},
+			Comment:        "Capital",
+			Content:        "Big city",
+			Selective:      true,
+			SelectiveLogic: 3,
+			Position:       positionBefore,
+		}},
+	}}, DefaultPreset())
+
+	embedded := book.Entries["1"]
+	if embedded.Comment != "(src: Alice) -> Capital" {
+		t.Fatalf("unexpected compacted comment: %q", embedded.Comment)
+	}
+	if len(embedded.KeySecondary) != 2 || embedded.KeySecondary[1] != "Alice" {
+		t.Fatalf("expected source gate appended to secondary keys, got %+v", embedded.KeySecondary)
+	}
+	if !embedded.Selective || embedded.SelectiveLogic != 3 {
+		t.Fatalf("expected selective settings preserved, got %+v", embedded)
+	}
+	if embedded.Position != positionBefore {
+		t.Fatalf("expected embedded position preserved, got %d", embedded.Position)
+	}
+}
+
+func TestBuildManyCanDisableCompacting(t *testing.T) {
+	t.Parallel()
+
+	book := BuildManyWithOptions([]card.Card{{
+		Name: "Alice",
+		EmbeddedLorebookEntries: []card.EmbeddedLorebookEntry{{
+			Key:     []string{"Town"},
+			Comment: "Capital",
+			Content: "Big city",
+		}},
+	}}, DefaultPreset(), false)
+
+	if len(book.Entries) != 1 {
+		t.Fatalf("expected only primary entry when compacting is off, got %d", len(book.Entries))
+	}
+}
+
+func TestBuildManyCompactingEnablesSelectiveForNewSourceGate(t *testing.T) {
+	t.Parallel()
+
+	book := BuildMany([]card.Card{{
+		Name: "Alice",
+		EmbeddedLorebookEntries: []card.EmbeddedLorebookEntry{{
+			Key:     []string{"Town"},
+			Comment: "Capital",
+			Content: "Big city",
+		}},
+	}}, DefaultPreset())
+
+	embedded := book.Entries["1"]
+	if !embedded.Selective {
+		t.Fatalf("expected source-gated entry to become selective, got %+v", embedded)
+	}
+	if len(embedded.KeySecondary) != 1 || embedded.KeySecondary[0] != "Alice" {
+		t.Fatalf("expected source-only secondary key, got %+v", embedded.KeySecondary)
 	}
 }

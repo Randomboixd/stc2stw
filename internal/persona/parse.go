@@ -17,13 +17,15 @@ type exportFile struct {
 }
 
 type descriptionRecord struct {
-	Description string `json:"description"`
+	Description string          `json:"description"`
+	Lorebook    json.RawMessage `json:"lorebook"`
 }
 
 type record struct {
 	StorageKey  string
 	Name        string
 	Description string
+	Lorebook    json.RawMessage
 }
 
 // ParseFile loads a persona export JSON and returns the selected persona as a normalized card.
@@ -61,8 +63,9 @@ func ParseJSON(data []byte, personaName string) (card.Card, error) {
 		return card.Card{}, fmt.Errorf("persona %q was not found in the export", personaName)
 	case 1:
 		return card.Card{
-			Name:        matches[0].Name,
-			Description: matches[0].Description,
+			Name:                    matches[0].Name,
+			Description:             matches[0].Description,
+			EmbeddedLorebookEntries: card.ParseEmbeddedLorebook(matches[0].Lorebook),
 		}, nil
 	default:
 		return card.Card{}, fmt.Errorf("persona %q is ambiguous in the export", personaName)
@@ -99,6 +102,7 @@ func parseRecords(data []byte) ([]record, error) {
 
 		if description, ok := payload.PersonaDescriptions[storageKey]; ok {
 			record.Description = description.Description
+			record.Lorebook = description.Lorebook
 		}
 
 		records = append(records, record)

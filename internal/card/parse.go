@@ -12,26 +12,28 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 )
 
 var pngSignature = []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
 
 type rawCardData struct {
-	Name                    string         `json:"name"`
-	Description             string         `json:"description"`
-	Personality             string         `json:"personality"`
-	Scenario                string         `json:"scenario"`
-	FirstMessage            string         `json:"first_mes"`
-	MessageExamples         string         `json:"mes_example"`
-	CreatorNotes            string         `json:"creator_notes"`
-	SystemPrompt            string         `json:"system_prompt"`
-	PostHistoryInstructions string         `json:"post_history_instructions"`
-	Creator                 string         `json:"creator"`
-	CharacterVersion        string         `json:"character_version"`
-	Tags                    []string       `json:"tags"`
-	AlternateGreetings      []string       `json:"alternate_greetings"`
-	Extensions              map[string]any `json:"extensions"`
+	Name                    string          `json:"name"`
+	Description             string          `json:"description"`
+	Personality             string          `json:"personality"`
+	Scenario                string          `json:"scenario"`
+	FirstMessage            string          `json:"first_mes"`
+	MessageExamples         string          `json:"mes_example"`
+	CreatorNotes            string          `json:"creator_notes"`
+	SystemPrompt            string          `json:"system_prompt"`
+	PostHistoryInstructions string          `json:"post_history_instructions"`
+	Creator                 string          `json:"creator"`
+	CharacterVersion        string          `json:"character_version"`
+	Tags                    []string        `json:"tags"`
+	AlternateGreetings      []string        `json:"alternate_greetings"`
+	CharacterBook           json.RawMessage `json:"character_book"`
+	Extensions              map[string]any  `json:"extensions"`
 }
 
 type rawCard struct {
@@ -49,6 +51,78 @@ type rawCard struct {
 type pngTextChunk struct {
 	keyword string
 	text    string
+}
+
+type rawCharacterBook struct {
+	Entries []rawCharacterBookEntry `json:"entries"`
+}
+
+type rawCharacterBookEntry struct {
+	Keys             []string       `json:"keys"`
+	Content          string         `json:"content"`
+	Extensions       map[string]any `json:"extensions"`
+	Enabled          *bool          `json:"enabled"`
+	InsertionOrder   *int           `json:"insertion_order"`
+	CaseSensitive    *bool          `json:"case_sensitive"`
+	Name             string         `json:"name"`
+	Priority         *int           `json:"priority"`
+	ID               *int           `json:"id"`
+	Comment          string         `json:"comment"`
+	Selective        *bool          `json:"selective"`
+	SecondaryKeys    []string       `json:"secondary_keys"`
+	Constant         *bool          `json:"constant"`
+	Position         string         `json:"position"`
+	Disable          *bool          `json:"disable"`
+	ExcludeRecursion *bool          `json:"excludeRecursion"`
+	Probability      *int           `json:"probability"`
+	UseProbability   *bool          `json:"useProbability"`
+}
+
+type rawEmbeddedLorebook struct {
+	Entries map[string]rawEmbeddedEntry `json:"entries"`
+}
+
+type rawEmbeddedEntry struct {
+	Key                       []string `json:"key"`
+	KeySecondary              []string `json:"keysecondary"`
+	Comment                   string   `json:"comment"`
+	Content                   string   `json:"content"`
+	Constant                  bool     `json:"constant"`
+	Vectorized                bool     `json:"vectorized"`
+	Selective                 bool     `json:"selective"`
+	SelectiveLogic            int      `json:"selectiveLogic"`
+	AddMemo                   bool     `json:"addMemo"`
+	Order                     int      `json:"order"`
+	Position                  int      `json:"position"`
+	Disable                   bool     `json:"disable"`
+	ExcludeRecursion          bool     `json:"excludeRecursion"`
+	PreventRecursion          bool     `json:"preventRecursion"`
+	DelayUntilRecursion       bool     `json:"delayUntilRecursion"`
+	Probability               int      `json:"probability"`
+	UseProbability            bool     `json:"useProbability"`
+	Depth                     int      `json:"depth"`
+	Group                     string   `json:"group"`
+	GroupOverride             bool     `json:"groupOverride"`
+	GroupWeight               int      `json:"groupWeight"`
+	ScanDepth                 *int     `json:"scanDepth"`
+	CaseSensitive             *bool    `json:"caseSensitive"`
+	MatchWholeWords           *bool    `json:"matchWholeWords"`
+	UseGroupScoring           *bool    `json:"useGroupScoring"`
+	AutomationID              string   `json:"automationId"`
+	Role                      int      `json:"role"`
+	OutletName                string   `json:"outletName"`
+	Sticky                    int      `json:"sticky"`
+	Cooldown                  int      `json:"cooldown"`
+	Delay                     int      `json:"delay"`
+	CharacterFilterExclude    *bool    `json:"characterFilterExclude"`
+	CharacterFilterNames      []string `json:"characterFilterNames"`
+	CharacterFilterTags       []string `json:"characterFilterTags"`
+	MatchCharacterDepthPrompt *bool    `json:"matchCharacterDepthPrompt"`
+	MatchCharacterDescription *bool    `json:"matchCharacterDescription"`
+	MatchCharacterPersonality *bool    `json:"matchCharacterPersonality"`
+	MatchCreatorNotes         *bool    `json:"matchCreatorNotes"`
+	MatchPersonaDescription   *bool    `json:"matchPersonaDescription"`
+	MatchScenario             *bool    `json:"matchScenario"`
 }
 
 // ParseFile loads and normalizes a character card from a .png or .json file.
@@ -127,6 +201,7 @@ func normalizeRawCard(raw rawCard) Card {
 			CharacterVersion:        raw.Data.CharacterVersion,
 			Tags:                    slices.Clone(raw.Data.Tags),
 			AlternateGreetings:      slices.Clone(raw.Data.AlternateGreetings),
+			EmbeddedLorebookEntries: parseEmbeddedLorebookEntries(raw.Data.CharacterBook),
 		}
 	}
 
@@ -138,6 +213,176 @@ func normalizeRawCard(raw rawCard) Card {
 		FirstMessage:    raw.FirstMessage,
 		MessageExamples: raw.MessageExamples,
 	}
+}
+
+func ParseEmbeddedLorebook(data []byte) []EmbeddedLorebookEntry {
+	return parseEmbeddedLorebookEntries(data)
+}
+
+func parseEmbeddedLorebookEntries(data []byte) []EmbeddedLorebookEntry {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		return nil
+	}
+
+	if entries, ok := parseStandaloneLorebookEntries(data); ok {
+		return entries
+	}
+	if entries, ok := parseCharacterBookEntries(data); ok {
+		return entries
+	}
+
+	return nil
+}
+
+func parseStandaloneLorebookEntries(data []byte) ([]EmbeddedLorebookEntry, bool) {
+	var raw rawEmbeddedLorebook
+	if err := json.Unmarshal(data, &raw); err != nil || len(raw.Entries) == 0 {
+		return nil, false
+	}
+
+	keys := make([]int, 0, len(raw.Entries))
+	indexByKey := make(map[int]rawEmbeddedEntry, len(raw.Entries))
+	for key, entry := range raw.Entries {
+		idx, err := strconv.Atoi(key)
+		if err != nil {
+			return nil, false
+		}
+		keys = append(keys, idx)
+		indexByKey[idx] = entry
+	}
+	slices.Sort(keys)
+
+	entries := make([]EmbeddedLorebookEntry, 0, len(keys))
+	for _, idx := range keys {
+		rawEntry := indexByKey[idx]
+		entries = append(entries, EmbeddedLorebookEntry{
+			Key:                       slices.Clone(rawEntry.Key),
+			KeySecondary:              slices.Clone(rawEntry.KeySecondary),
+			Comment:                   rawEntry.Comment,
+			Content:                   rawEntry.Content,
+			Constant:                  rawEntry.Constant,
+			Vectorized:                rawEntry.Vectorized,
+			Selective:                 rawEntry.Selective,
+			SelectiveLogic:            rawEntry.SelectiveLogic,
+			AddMemo:                   rawEntry.AddMemo,
+			Order:                     rawEntry.Order,
+			Position:                  rawEntry.Position,
+			Disable:                   rawEntry.Disable,
+			ExcludeRecursion:          rawEntry.ExcludeRecursion,
+			PreventRecursion:          rawEntry.PreventRecursion,
+			DelayUntilRecursion:       rawEntry.DelayUntilRecursion,
+			Probability:               rawEntry.Probability,
+			UseProbability:            rawEntry.UseProbability,
+			Depth:                     rawEntry.Depth,
+			Group:                     rawEntry.Group,
+			GroupOverride:             rawEntry.GroupOverride,
+			GroupWeight:               rawEntry.GroupWeight,
+			ScanDepth:                 cloneIntPointer(rawEntry.ScanDepth),
+			CaseSensitive:             cloneBoolPointer(rawEntry.CaseSensitive),
+			MatchWholeWords:           cloneBoolPointer(rawEntry.MatchWholeWords),
+			UseGroupScoring:           cloneBoolPointer(rawEntry.UseGroupScoring),
+			AutomationID:              rawEntry.AutomationID,
+			Role:                      rawEntry.Role,
+			OutletName:                rawEntry.OutletName,
+			Sticky:                    rawEntry.Sticky,
+			Cooldown:                  rawEntry.Cooldown,
+			Delay:                     rawEntry.Delay,
+			CharacterFilterExclude:    cloneBoolPointer(rawEntry.CharacterFilterExclude),
+			CharacterFilterNames:      slices.Clone(rawEntry.CharacterFilterNames),
+			CharacterFilterTags:       slices.Clone(rawEntry.CharacterFilterTags),
+			MatchCharacterDepthPrompt: cloneBoolPointer(rawEntry.MatchCharacterDepthPrompt),
+			MatchCharacterDescription: cloneBoolPointer(rawEntry.MatchCharacterDescription),
+			MatchCharacterPersonality: cloneBoolPointer(rawEntry.MatchCharacterPersonality),
+			MatchCreatorNotes:         cloneBoolPointer(rawEntry.MatchCreatorNotes),
+			MatchPersonaDescription:   cloneBoolPointer(rawEntry.MatchPersonaDescription),
+			MatchScenario:             cloneBoolPointer(rawEntry.MatchScenario),
+		})
+	}
+
+	return entries, true
+}
+
+func parseCharacterBookEntries(data []byte) ([]EmbeddedLorebookEntry, bool) {
+	var raw rawCharacterBook
+	if err := json.Unmarshal(data, &raw); err != nil || len(raw.Entries) == 0 {
+		return nil, false
+	}
+
+	entries := make([]EmbeddedLorebookEntry, 0, len(raw.Entries))
+	for _, entry := range raw.Entries {
+		normalized := EmbeddedLorebookEntry{
+			Key:            slices.Clone(entry.Keys),
+			KeySecondary:   slices.Clone(entry.SecondaryKeys),
+			Comment:        firstNonEmpty(entry.Comment, entry.Name),
+			Name:           entry.Name,
+			Content:        entry.Content,
+			Constant:       valueOrDefaultBool(entry.Constant, false),
+			Selective:      valueOrDefaultBool(entry.Selective, len(entry.SecondaryKeys) > 0),
+			SelectiveLogic: 0,
+			AddMemo:        true,
+			Order:          valueOrDefaultInt(entry.InsertionOrder, 100),
+			Disable:        !valueOrDefaultBool(entry.Enabled, true) || valueOrDefaultBool(entry.Disable, false),
+			Probability:    valueOrDefaultInt(entry.Probability, 100),
+			UseProbability: valueOrDefaultBool(entry.UseProbability, entry.Probability != nil),
+			GroupWeight:    100,
+			CaseSensitive:  cloneBoolPointer(entry.CaseSensitive),
+		}
+
+		switch strings.ToLower(strings.TrimSpace(entry.Position)) {
+		case "before_char":
+			normalized.Position = 0
+		case "after_char":
+			normalized.Position = 1
+		}
+
+		if entry.ExcludeRecursion != nil {
+			normalized.ExcludeRecursion = *entry.ExcludeRecursion
+		}
+
+		entries = append(entries, normalized)
+	}
+
+	return entries, true
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func valueOrDefaultBool(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+	return *value
+}
+
+func valueOrDefaultInt(value *int, fallback int) int {
+	if value == nil {
+		return fallback
+	}
+	return *value
+}
+
+func cloneIntPointer(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func cloneBoolPointer(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func prioritizeChunkCandidates(chunks []pngTextChunk) []string {

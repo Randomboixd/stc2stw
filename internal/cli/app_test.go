@@ -14,12 +14,20 @@ func TestRunWritesJSONToStdoutByDefault(t *testing.T) {
 	tempDir := t.TempDir()
 	inputPath := filepath.Join(tempDir, "card.json")
 	if err := os.WriteFile(inputPath, []byte(`{
-		"name":"Alice",
-		"description":"Desc",
-		"personality":"Kind",
-		"scenario":"Scene",
-		"first_mes":"Hello",
-		"mes_example":"Alice: hi"
+		"spec":"chara_card_v2",
+		"data":{
+			"name":"Alice",
+			"description":"Desc",
+			"personality":"Kind",
+			"scenario":"Scene",
+			"first_mes":"Hello",
+			"mes_example":"Alice: hi",
+			"character_book":{
+				"entries":[
+					{"keys":["Town"],"content":"Big city","name":"Capital"}
+				]
+			}
+		}
 	}`), 0o644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
@@ -39,6 +47,9 @@ func TestRunWritesJSONToStdoutByDefault(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "\"position\": 4") || !strings.Contains(stdout.String(), "\"role\": 1") {
 		t.Fatalf("expected default @duser position/role, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "\"comment\": \"(src: Alice) -\\u003e Capital\"") {
+		t.Fatalf("expected compacted embedded entry, got %q", stdout.String())
 	}
 }
 
@@ -162,7 +173,14 @@ func TestRunPersonaExportWritesJSONToStdout(t *testing.T) {
 		},
 		"persona_descriptions": {
 			"1740236705309-Alice.png": {"description":"Analyst"},
-			"1740236705310-Bob.png": {"description":"Builder"}
+			"1740236705310-Bob.png": {
+				"description":"Builder",
+				"lorebook":{
+					"entries":{
+						"0":{"key":["Hammer"],"comment":"Tool","content":"Heavy"}
+					}
+				}
+			}
 		}
 	}`), 0o644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
@@ -180,6 +198,9 @@ func TestRunPersonaExportWritesJSONToStdout(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "## Description\\nBuilder") && !strings.Contains(stdout.String(), "## Description\nBuilder") {
 		t.Fatalf("expected persona description in output, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "\"comment\": \"(src: Bob) -\\u003e Tool\"") {
+		t.Fatalf("expected compacted persona lorebook entry, got %q", stdout.String())
 	}
 }
 
@@ -348,6 +369,72 @@ func TestRunPositionPresetAppliesToAllMassEntries(t *testing.T) {
 	text := stdout.String()
 	if strings.Count(text, "\"position\": 0") != 2 {
 		t.Fatalf("expected both entries at before-char position, got %q", text)
+	}
+}
+
+func TestRunNoCompactDisablesEmbeddedLoreCopy(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inputPath := filepath.Join(tempDir, "card.json")
+	if err := os.WriteFile(inputPath, []byte(`{
+		"spec":"chara_card_v2",
+		"data":{
+			"name":"Alice",
+			"character_book":{
+				"entries":[
+					{"keys":["Town"],"content":"Big city","name":"Capital"}
+				]
+			}
+		}
+	}`), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Run([]string{inputPath, "--no-compact"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+	if strings.Contains(stdout.String(), "(src: Alice) -> Capital") {
+		t.Fatalf("expected no compacted entries, got %q", stdout.String())
+	}
+}
+
+func TestRunPositionDoesNotOverrideCompactedEntryPosition(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inputPath := filepath.Join(tempDir, "card.json")
+	if err := os.WriteFile(inputPath, []byte(`{
+		"spec":"chara_card_v2",
+		"data":{
+			"name":"Alice",
+			"character_book":{
+				"entries":[
+					{"keys":["Town"],"content":"Big city","name":"Capital","position":"before_char"}
+				]
+			}
+		}
+	}`), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Run([]string{inputPath, "--position", "outlet"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+	text := stdout.String()
+	if !strings.Contains(text, "\"outletName\": \"stc2stw\"") {
+		t.Fatalf("expected primary entry to use outlet preset, got %q", text)
+	}
+	if !strings.Contains(text, "\"comment\": \"(src: Alice) -\\u003e Capital\"") || !strings.Contains(text, "\"position\": 0") {
+		t.Fatalf("expected compacted entry to keep embedded position, got %q", text)
 	}
 }
 

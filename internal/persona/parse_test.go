@@ -29,6 +29,41 @@ func TestParseJSONFindsPersonaInKeyedExport(t *testing.T) {
 	}
 }
 
+func TestParseJSONCarriesPersonaLorebook(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`{
+		"personas": {
+			"1740236705310-Bob.png": "Bob"
+		},
+		"persona_descriptions": {
+			"1740236705310-Bob.png": {
+				"description":"Builder",
+				"lorebook":{
+					"entries":{
+						"0":{
+							"key":["Hammer"],
+							"comment":"Tool",
+							"content":"Heavy"
+						}
+					}
+				}
+			}
+		}
+	}`)
+
+	persona, err := ParseJSON(input, "Bob")
+	if err != nil {
+		t.Fatalf("ParseJSON returned error: %v", err)
+	}
+	if len(persona.EmbeddedLorebookEntries) != 1 {
+		t.Fatalf("expected embedded lorebook entry, got %d", len(persona.EmbeddedLorebookEntries))
+	}
+	if persona.EmbeddedLorebookEntries[0].Comment != "Tool" {
+		t.Fatalf("unexpected embedded entry: %+v", persona.EmbeddedLorebookEntries[0])
+	}
+}
+
 func TestParseJSONAcceptsMissingDescriptionRecord(t *testing.T) {
 	t.Parallel()
 

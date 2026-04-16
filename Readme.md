@@ -52,6 +52,21 @@ as a better example:
 ./stc2stw Character1.png Character2.json persona_<date>.json:Mario (also case insensitive) --mass
 ```
 
+# compacting embedded lorebooks
+
+by default stc2stw will also compact embedded lorebooks found inside character cards or personas into the generated output lorebook.
+
+that means:
+- the normal main entry for the character/persona is still generated
+- embedded WI entries are copied over too
+- copied entries are renamed like `(src: Alice) -> Capital City`
+- the source character/persona name is added as a secondary trigger so the copied lore is scoped to that source
+
+if you want the old behavior and only want the generated main entry, use:
+```bash
+./stc2stw Character.png --no-compact
+```
+
 # configuring insertion position
 
 by default stc2stw will make all entries be inserted as "@D 👤", aka as a user role message. usually this is fine! but sometimes on some models and presets, this might actually be **evil**, and may cause the AI to have no idea what the fuck is going on.

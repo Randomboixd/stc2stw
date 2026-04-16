@@ -73,6 +73,71 @@ func TestParseJSONV2(t *testing.T) {
 	}
 }
 
+func TestParseJSONV2CharacterBook(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`{
+		"spec":"chara_card_v2",
+		"data":{
+			"name":"Alice",
+			"character_book":{
+				"entries":[
+					{
+						"keys":["Town"],
+						"content":"Big city",
+						"name":"Capital",
+						"enabled":true,
+						"insertion_order":42,
+						"secondary_keys":["Urban"],
+						"selective":true,
+						"position":"after_char"
+					}
+				]
+			}
+		}
+	}`)
+
+	card, err := ParseJSON(input)
+	if err != nil {
+		t.Fatalf("ParseJSON returned error: %v", err)
+	}
+
+	if len(card.EmbeddedLorebookEntries) != 1 {
+		t.Fatalf("expected 1 embedded lore entry, got %d", len(card.EmbeddedLorebookEntries))
+	}
+	entry := card.EmbeddedLorebookEntries[0]
+	if entry.Comment != "Capital" || entry.Order != 42 || entry.Position != 1 {
+		t.Fatalf("unexpected embedded lore entry: %+v", entry)
+	}
+}
+
+func TestParseEmbeddedStandaloneLorebook(t *testing.T) {
+	t.Parallel()
+
+	input := []byte(`{
+		"entries":{
+			"2":{
+				"key":["Town"],
+				"keysecondary":["Urban"],
+				"comment":"Capital",
+				"content":"Big city",
+				"selective":true,
+				"selectiveLogic":3,
+				"position":4,
+				"role":1
+			}
+		}
+	}`)
+
+	entries := ParseEmbeddedLorebook(input)
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 embedded lore entry, got %d", len(entries))
+	}
+	if entries[0].Comment != "Capital" || entries[0].Role != 1 || entries[0].SelectiveLogic != 3 {
+		t.Fatalf("unexpected parsed embedded lore entry: %+v", entries[0])
+	}
+}
+
 func TestParsePNGCharaTextChunk(t *testing.T) {
 	t.Parallel()
 
