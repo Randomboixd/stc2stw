@@ -65,7 +65,8 @@ func TestRunWritesFileWhenOutIsSet(t *testing.T) {
 		"personality":"Kind",
 		"scenario":"Scene",
 		"first_mes":"Hello",
-		"mes_example":"Alice: hi"
+		"mes_example":"Alice: hi",
+		"creator_notes":"Secret"
 	}`), 0o644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
@@ -87,6 +88,9 @@ func TestRunWritesFileWhenOutIsSet(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "\"entries\"") {
 		t.Fatalf("expected lorebook json file, got %q", string(data))
+	}
+	if strings.Contains(string(data), "Creator Notes") {
+		t.Fatalf("expected creator notes to be omitted by default, got %q", string(data))
 	}
 }
 
@@ -112,6 +116,60 @@ func TestRunWritesFileWhenShortOutIsSet(t *testing.T) {
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("expected empty stdout, got %q", stdout.String())
+	}
+}
+
+func TestRunAddCreatorNotesIncludesCreatorNotes(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inputPath := filepath.Join(tempDir, "card.json")
+	if err := os.WriteFile(inputPath, []byte(`{
+		"spec":"chara_card_v2",
+		"data":{
+			"name":"Alice",
+			"creator_notes":"Secret notes"
+		}
+	}`), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Run([]string{inputPath, "--add-creator-notes"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "## Creator Notes\\nSecret notes") && !strings.Contains(stdout.String(), "## Creator Notes\nSecret notes") {
+		t.Fatalf("expected creator notes in output, got %q", stdout.String())
+	}
+}
+
+func TestRunShortCreatorNotesFlagIncludesCreatorNotes(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	inputPath := filepath.Join(tempDir, "card.json")
+	if err := os.WriteFile(inputPath, []byte(`{
+		"spec":"chara_card_v2",
+		"data":{
+			"name":"Alice",
+			"creator_notes":"Secret notes"
+		}
+	}`), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Run([]string{inputPath, "-C"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "## Creator Notes\\nSecret notes") && !strings.Contains(stdout.String(), "## Creator Notes\nSecret notes") {
+		t.Fatalf("expected creator notes in output, got %q", stdout.String())
 	}
 }
 

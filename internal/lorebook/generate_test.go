@@ -13,6 +13,7 @@ func TestBuildIncludesOnlyNonEmptySections(t *testing.T) {
 	book := Build(card.Card{
 		Name:            "Alice",
 		Description:     "Desc",
+		CreatorNotes:    "Hidden",
 		FirstMessage:    "Hello",
 		MessageExamples: "Ally: hi\n{{user}}: hello",
 	})
@@ -24,11 +25,30 @@ func TestBuildIncludesOnlyNonEmptySections(t *testing.T) {
 	if !strings.Contains(entry.Content, "## Description\nDesc") {
 		t.Fatal("expected description section to be rendered")
 	}
+	if strings.Contains(entry.Content, "## Creator Notes") {
+		t.Fatal("expected creator notes to be omitted by default")
+	}
 	if len(entry.Key) != 2 {
 		t.Fatalf("expected 2 keys (name + alias), got %d", len(entry.Key))
 	}
 	if entry.Key[1] != "Ally" {
 		t.Fatalf("expected alias Ally, got %q", entry.Key[1])
+	}
+}
+
+func TestBuildManyCanIncludeCreatorNotes(t *testing.T) {
+	t.Parallel()
+
+	book := BuildManyWithOptions([]card.Card{{
+		Name:         "Alice",
+		CreatorNotes: "Private note",
+	}}, DefaultPreset(), BuildOptions{
+		Compact:             true,
+		IncludeCreatorNotes: true,
+	})
+
+	if !strings.Contains(book.Entries["0"].Content, "## Creator Notes\nPrivate note") {
+		t.Fatalf("expected creator notes in output, got %q", book.Entries["0"].Content)
 	}
 }
 
@@ -159,7 +179,9 @@ func TestBuildManyCanDisableCompacting(t *testing.T) {
 			Comment: "Capital",
 			Content: "Big city",
 		}},
-	}}, DefaultPreset(), false)
+	}}, DefaultPreset(), BuildOptions{
+		Compact: false,
+	})
 
 	if len(book.Entries) != 1 {
 		t.Fatalf("expected only primary entry when compacting is off, got %d", len(book.Entries))

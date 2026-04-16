@@ -86,9 +86,19 @@ type InsertionPreset struct {
 	OutletName string
 }
 
+type BuildOptions struct {
+	Compact             bool
+	IncludeCreatorNotes bool
+}
+
 var defaultPreset = InsertionPreset{
 	Position: positionAtDepth,
 	Role:     roleUser,
+}
+
+var defaultBuildOptions = BuildOptions{
+	Compact:             true,
+	IncludeCreatorNotes: false,
 }
 
 // Build converts a normalized card into a standalone SillyTavern lorebook.
@@ -98,14 +108,14 @@ func Build(c card.Card) Lorebook {
 
 // BuildMany converts a list of normalized cards into a standalone SillyTavern lorebook.
 func BuildMany(cards []card.Card, preset InsertionPreset) Lorebook {
-	return BuildManyWithOptions(cards, preset, true)
+	return BuildManyWithOptions(cards, preset, defaultBuildOptions)
 }
 
-func BuildManyWithOptions(cards []card.Card, preset InsertionPreset, compact bool) Lorebook {
+func BuildManyWithOptions(cards []card.Card, preset InsertionPreset, options BuildOptions) Lorebook {
 	flattened := make([]Entry, 0, len(cards))
 	for _, c := range cards {
-		flattened = append(flattened, buildPrimaryEntry(c, preset))
-		if compact {
+		flattened = append(flattened, buildPrimaryEntry(c, preset, options))
+		if options.Compact {
 			flattened = append(flattened, compactEmbeddedEntries(c)...)
 		}
 	}
@@ -162,13 +172,13 @@ func Marshal(book Lorebook) ([]byte, error) {
 	return data, nil
 }
 
-func buildPrimaryEntry(c card.Card, preset InsertionPreset) Entry {
+func buildPrimaryEntry(c card.Card, preset InsertionPreset, options BuildOptions) Entry {
 	return Entry{
 		UID:                 0,
 		Key:                 buildKeys(c),
 		KeySecondary:        []string{},
 		Comment:             c.Name,
-		Content:             buildMarkdown(c),
+		Content:             buildMarkdown(c, options),
 		Constant:            false,
 		Vectorized:          false,
 		Selective:           false,
@@ -320,7 +330,7 @@ func extractAliases(c card.Card) []string {
 	return slices.Clip(aliases)
 }
 
-func buildMarkdown(c card.Card) string {
+func buildMarkdown(c card.Card, options BuildOptions) string {
 	var sections []string
 	sections = append(sections, "# "+c.Name)
 
@@ -337,7 +347,9 @@ func buildMarkdown(c card.Card) string {
 	appendSection("Scenario", c.Scenario)
 	appendSection("First Message", c.FirstMessage)
 	appendSection("Example Messages", c.MessageExamples)
-	appendSection("Creator Notes", c.CreatorNotes)
+	if options.IncludeCreatorNotes {
+		appendSection("Creator Notes", c.CreatorNotes)
+	}
 	appendSection("System Prompt", c.SystemPrompt)
 	appendSection("Post-History Instructions", c.PostHistoryInstructions)
 	if len(c.AlternateGreetings) > 0 {

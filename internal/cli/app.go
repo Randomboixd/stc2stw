@@ -37,6 +37,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	var positionName string
 	var mass bool
 	var noCompact bool
+	var addCreatorNotes bool
 	var verbose bool
 
 	fs.StringVar(&outPath, "out", "", "write output JSON to a file")
@@ -48,12 +49,14 @@ func run(args []string, stdout, stderr io.Writer) error {
 	fs.BoolVar(&mass, "mass", false, "combine multiple inputs into one lorebook")
 	fs.BoolVar(&mass, "m", false, "combine multiple inputs into one lorebook")
 	fs.BoolVar(&noCompact, "no-compact", false, "disable embedded lorebook compacting")
+	fs.BoolVar(&addCreatorNotes, "add-creator-notes", false, "include creator notes in generated entries")
+	fs.BoolVar(&addCreatorNotes, "C", false, "include creator notes in generated entries")
 	fs.BoolVar(&verbose, "v", false, "print progress logs to stderr")
 	fs.BoolVar(&verbose, "verbose", false, "print progress logs to stderr")
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: stc2stw <Character Card.{png,json}> [--position=@duser|-P @duser] [--no-compact] [--out=output.json|-o output.json] [-v|--verbose]")
-		fmt.Fprintln(stderr, "   or: stc2stw <Persona Export.json> --persona \"Name\" [--position=@duser|-P @duser] [--no-compact] [--out=output.json|-o output.json] [-v|--verbose]")
-		fmt.Fprintln(stderr, "   or: stc2stw <Input1> <Input2> [...] --mass [--position=@duser|-P @duser] [--no-compact] [--out=output.json|-o output.json] [-v|--verbose]")
+		fmt.Fprintln(stderr, "usage: stc2stw <Character Card.{png,json}> [--position=@duser|-P @duser] [--no-compact] [--add-creator-notes|-C] [--out=output.json|-o output.json] [-v|--verbose]")
+		fmt.Fprintln(stderr, "   or: stc2stw <Persona Export.json> --persona \"Name\" [--position=@duser|-P @duser] [--no-compact] [--add-creator-notes|-C] [--out=output.json|-o output.json] [-v|--verbose]")
+		fmt.Fprintln(stderr, "   or: stc2stw <Input1> <Input2> [...] --mass [--position=@duser|-P @duser] [--no-compact] [--add-creator-notes|-C] [--out=output.json|-o output.json] [-v|--verbose]")
 	}
 
 	if err := fs.Parse(args); err != nil {
@@ -100,7 +103,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	logf("building lorebook with %d sources", len(parsedCards))
-	book := lorebook.BuildManyWithOptions(parsedCards, preset, !noCompact)
+	book := lorebook.BuildManyWithOptions(parsedCards, preset, lorebook.BuildOptions{
+		Compact:             !noCompact,
+		IncludeCreatorNotes: addCreatorNotes,
+	})
 
 	data, err := lorebook.Marshal(book)
 	if err != nil {

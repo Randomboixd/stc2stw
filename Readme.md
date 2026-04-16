@@ -27,6 +27,8 @@ and the result will be printed in your terminal. You'd typically wanna redirect 
 
 wow. you can now import that right into sillytavern!
 
+note: `Creator Notes` are omitted by default from generated entries. if you want them included, pass `--add-creator-notes` or `-C`.
+
 you can also put personas from persona backups into a lorebook! on sillytavern you go to Personas > Backup and you get a json...
 
 and if you feed it to stc2stw like thiiis:
