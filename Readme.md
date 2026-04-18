@@ -2,6 +2,13 @@
 
 a simple conversion program shamefully vibecoded in golang by OpenAI Codex to turn sillytavern characters into a sillytavern lorebook. oh yeah and it also works for personas probably.
 
+# try it on web
+
+you can also try a wasm powered version of this on the web. the source for that will be available soon after testing finishes, but so far you can test everything out
+here: [stc2stw-web-experimental](https://stc2stw-web-experimental.vercel.app/)
+
+nothing leaves your device as this is the same thing as the cli version just with a web interface that loads a wasm release of stc2stw at startup.
+
 # building
 
 get go. possibly the latest go. i use go from nix, so if you have nix, then `nix-shell -p go`
